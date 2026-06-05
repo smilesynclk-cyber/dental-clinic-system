@@ -194,10 +194,6 @@ export default function LoginPage() {
               <p className="font-medium text-gray-800">💼 Receptionist</p>
               <p className="text-gray-500 text-xs">reception@demo.com / reception123</p>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="font-medium text-gray-800">👑 Admin</p>
-              <p className="text-gray-500 text-xs">admin@smilesync.com / Admin@123</p>
-            </div>
           </div>
         </div>
       </div>

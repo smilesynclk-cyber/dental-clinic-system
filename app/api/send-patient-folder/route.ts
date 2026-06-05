@@ -42,8 +42,7 @@ export async function POST(request: Request) {
       attachments: [
         {
           filename: pdfName,
-          content: pdfBuffer.toString('base64'),
-          encoding: 'base64'
+          content: pdfBuffer.toString('base64')
         }
       ]
     })

@@ -1,10 +1,19 @@
 'use client'
 
+import { useState } from 'react'
+import { createClient } from '@/lib/client'
 import Link from 'next/link'
+
+interface Patient {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string
+}
 
 export default function SearchBar() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [results, setResults] = useState([])
+  const [results, setResults] = useState<Patient[]>([])
   const supabase = createClient()
 
   async function handleSearch(value: string) {
@@ -32,7 +41,7 @@ export default function SearchBar() {
       />
       {results.length > 0 && (
         <div className="absolute top-full left-0 right-0 bg-white border rounded-lg shadow-lg mt-1 z-10 max-h-60 overflow-y-auto">
-          {results.map((patient: any) => (
+          {results.map((patient) => (
             <Link
               key={patient.id}
               href={`/patients/${patient.id}`}

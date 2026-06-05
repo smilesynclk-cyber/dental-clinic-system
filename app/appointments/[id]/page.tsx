@@ -2,7 +2,10 @@ import { createClient } from '@/lib/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 
-export default async function AppointmentDetailPage({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  // Await params first
+  const { id } = await params;
+  
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
 
@@ -10,7 +13,7 @@ export default async function AppointmentDetailPage({ params }: { params: { id: 
     redirect('/login')
   }
 
-  // Fetch appointment details
+  // Fetch appointment details - use the extracted id variable
   const { data: appointment } = await supabase
     .from('appointments')
     .select(`
@@ -18,7 +21,7 @@ export default async function AppointmentDetailPage({ params }: { params: { id: 
       patients (*),
       clinic:clinics (*)
     `)
-    .eq('id', params.id)
+    .eq('id', id)  // Changed from params.id to id
     .single()
 
   if (!appointment) {

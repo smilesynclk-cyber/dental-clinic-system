@@ -1,0 +1,136 @@
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+// Simple in-memory cache for user roles
+const userCache = new Map<string, { role: string; clinic_id: string | null; expires: number }>()
+const CACHE_TTL = 60000 // 1 minute cache
+
+// Paths that don't need auth checks
+const PUBLIC_PATHS = ['/_next', '/api', '/login', '/favicon.ico', '/logo.png', '/log.png']
+const PROTECTED_PREFIX = '/protected'
+
+export async function proxy(request: NextRequest) {
+  const startTime = Date.now()
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value)
+          )
+          response = NextResponse.next({
+            request,
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  const path = request.nextUrl.pathname
+  
+  // Skip auth checks for public paths
+  if (PUBLIC_PATHS.some(p => path.startsWith(p))) {
+    return response
+  }
+
+  // Get user - this is the most expensive operation
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  // If no user and accessing protected path, redirect to login
+  if (!user && path.startsWith(PROTECTED_PREFIX)) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // If no user on other paths, continue
+  if (!user) {
+    return response
+  }
+
+  const isSubscriptionPage = path === '/subscription-expired'
+  const isAdminPath = path.startsWith('/protected/admin')
+
+  // Get user data from cache or database
+  let userData: { role: string; clinic_id: string | null } | null = null
+  const cached = userCache.get(user.email)
+  
+  if (cached && cached.expires > Date.now()) {
+    userData = { role: cached.role, clinic_id: cached.clinic_id }
+  } else {
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('role, clinic_id')
+      .eq('email', user.email)
+      .maybeSingle()
+    
+    if (dbUser) {
+      userData = { role: dbUser.role, clinic_id: dbUser.clinic_id }
+      userCache.set(user.email, {
+        role: dbUser.role,
+        clinic_id: dbUser.clinic_id,
+        expires: Date.now() + CACHE_TTL
+      })
+    }
+  }
+
+  // Handle redirects for auth paths
+  if (path === '/' || path === '/login') {
+    if (userData?.role === 'doctor') {
+      return NextResponse.redirect(new URL('/protected/dashboard/doctor', request.url))
+    } else if (userData?.role === 'owner') {
+      return NextResponse.redirect(new URL('/protected/admin', request.url))
+    } else {
+      return NextResponse.redirect(new URL('/protected/dashboard/reception', request.url))
+    }
+  }
+
+  // Check subscription for non-admin users (skip for admin)
+  if (path.startsWith(PROTECTED_PREFIX) && !isSubscriptionPage && !isAdminPath && userData?.role !== 'owner') {
+    if (userData?.clinic_id) {
+      // Check clinic subscription from cache if possible
+      const { data: clinic } = await supabase
+        .from('clinics')
+        .select('is_active, subscription_expires_at')
+        .eq('id', userData.clinic_id)
+        .maybeSingle()
+
+      if (clinic) {
+        const isExpired = clinic.subscription_expires_at 
+          ? new Date(clinic.subscription_expires_at) < new Date()
+          : false
+        
+        const isInactive = clinic.is_active === false
+
+        if (isExpired || isInactive) {
+          return NextResponse.redirect(new URL('/subscription-expired', request.url))
+        }
+      }
+    }
+  }
+
+  const duration = Date.now() - startTime
+  if (duration > 500) {
+    console.log(`⚠️ proxy.ts took ${duration}ms for ${path}`)
+  }
+
+  return response
+}
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}

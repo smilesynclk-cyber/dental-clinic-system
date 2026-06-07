@@ -181,7 +181,7 @@ function generateAppointmentHTML(appointmentData: any, patientName: string) {
       <div class="container">
         ${testWatermark}
         <div class="header">
-          <h1>🦷 ${appointmentData.clinic_name || 'Dental Clinic'}</h1>
+          <h1>🦷 ${appointmentData.clinic_name || 'Finest Dental Care'}</h1>
           <p>Your Trusted Dental Care Partner</p>
         </div>
         
@@ -203,7 +203,7 @@ function generateAppointmentHTML(appointmentData: any, patientName: string) {
           
           <div class="reminder-box">
             <p>📌 <strong>Please arrive 10 minutes early</strong> for your appointment.</p>
-            <p>Bring your insurance card and any relevant medical records.</p>
+            <p>Bring your any relevant medical records.</p>
             <p>If you need to reschedule, please contact us at least 24 hours in advance.</p>
           </div>
           
@@ -211,15 +211,15 @@ function generateAppointmentHTML(appointmentData: any, patientName: string) {
             To cancel or reschedule, please contact our reception at:
           </p>
           <p>
-            📞 ${appointmentData.clinic_phone || '+1 234 567 8900'}<br>
-            ✉️ ${appointmentData.clinic_email || 'info@dentalclinic.com'}
+            📞 ${appointmentData.clinic_phone || '+94 77 288 6121'}<br>
+            ✉️ ${appointmentData.clinic_email || 'contact@finestdentalcare.lk'}
           </p>
         </div>
         
         <div class="footer">
           <p>
-            <strong>${appointmentData.clinic_name || 'Dental Clinic'}</strong><br>
-            ${appointmentData.clinic_address || '123 Dental Street, Health City'}<br>
+            <strong>${appointmentData.clinic_name || 'Finest Dental Care'}</strong><br>
+            ${appointmentData.clinic_address || '446/3, Third Lane, Nawala Rd, 10107'}<br>
             © ${new Date().getFullYear()} All rights reserved.
           </p>
         </div>

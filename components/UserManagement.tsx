@@ -10,7 +10,8 @@ interface User {
   last_name: string
   role: string
   is_active: boolean
-  clinics?: { name: string }
+  clinic_id?: string
+  clinics?: { id: string; name: string }
 }
 
 export default function UserManagement({ initialUsers }: { initialUsers: User[] }) {
@@ -60,17 +61,39 @@ export default function UserManagement({ initialUsers }: { initialUsers: User[] 
       const result = await response.json()
       
       if (result.error) {
-        alert('Error: ' + result.error)
+        if (result.error.includes('duplicate') || result.error.includes('already exists')) {
+          alert('User with this email already exists. Please use a different email.')
+        } else {
+          alert('Error: ' + result.error)
+        }
       } else {
         alert('User added successfully!')
         setShowAddForm(false)
         setFormData({ email: '', password: '', first_name: '', last_name: '', role: 'receptionist', clinic_id: '' })
-        window.location.reload()
+        // Refresh the user list
+        refreshUsers()
       }
     } catch (error) {
       alert('Error creating user')
     }
     setLoading(false)
+  }
+
+  async function refreshUsers() {
+    const { data: usersData } = await supabase
+      .from('users')
+      .select(`
+        *,
+        clinics (
+          id,
+          name
+        )
+      `)
+      .order('created_at', { ascending: false })
+    
+    if (usersData) {
+      setUsers(usersData)
+    }
   }
 
   async function handleUpdateUser(user: User) {
@@ -80,7 +103,8 @@ export default function UserManagement({ initialUsers }: { initialUsers: User[] 
         first_name: user.first_name || '',
         last_name: user.last_name || '',
         role: user.role,
-        is_active: user.is_active
+        is_active: user.is_active,
+        clinic_id: user.clinic_id
       })
       .eq('id', user.id)
 
@@ -89,12 +113,16 @@ export default function UserManagement({ initialUsers }: { initialUsers: User[] 
     } else {
       alert('User updated successfully!')
       setEditingUser(null)
-      window.location.reload()
+      refreshUsers()
     }
   }
 
-  async function handleDeleteUser(userId: string) {
-    if (!confirm('Are you sure? This will permanently delete the user.')) return
+  async function handleDeleteUser(userId: string, email: string, role: string) {
+    if (role === 'owner') {
+      alert('Cannot delete the main admin account!')
+      return
+    }
+    if (!confirm(`Delete user ${email}? This action cannot be undone.`)) return
 
     const { error } = await supabase
       .from('users')
@@ -105,8 +133,31 @@ export default function UserManagement({ initialUsers }: { initialUsers: User[] 
       alert('Error deleting user: ' + error.message)
     } else {
       alert('User deleted successfully!')
-      window.location.reload()
+      refreshUsers()
     }
+  }
+
+  async function handleResetPassword(email: string) {
+    if (!confirm(`Send password reset email to ${email}?`)) return
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    })
+    
+    if (error) {
+      alert('Error: ' + error.message)
+    } else {
+      alert(`✓ Password reset email sent to ${email}`)
+    }
+  }
+
+  const getClinicName = (user: User) => {
+    if (user.clinics?.name) return user.clinics.name
+    if (user.clinic_id) {
+      const clinic = clinics.find(c => c.id === user.clinic_id)
+      return clinic?.name || '-'
+    }
+    return '-'
   }
 
   return (
@@ -231,7 +282,18 @@ export default function UserManagement({ initialUsers }: { initialUsers: User[] 
                         <option value="owner">Admin</option>
                       </select>
                     </td>
-                    <td className="px-3 py-2">{user.clinics?.name || '-'}</td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={editingUser.clinic_id || ''}
+                        onChange={(e) => setEditingUser({...editingUser, clinic_id: e.target.value})}
+                        className="border rounded px-2 py-1 w-32"
+                      >
+                        <option value="">Select Clinic</option>
+                        {clinics.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-3 py-2">
                       <button
                         onClick={() => setEditingUser({...editingUser, is_active: !editingUser.is_active})}
@@ -250,15 +312,26 @@ export default function UserManagement({ initialUsers }: { initialUsers: User[] 
                     <td className="px-3 py-2">{user.first_name || ''} {user.last_name || ''}</td>
                     <td className="px-3 py-2">{user.email}</td>
                     <td className="px-3 py-2 capitalize">{user.role}</td>
-                    <td className="px-3 py-2">{user.clinics?.name || '-'}</td>
+                    <td className="px-3 py-2">{getClinicName(user)}</td>
                     <td className="px-3 py-2">
                       <span className={`px-2 py-1 rounded text-xs ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {user.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      <button onClick={() => setEditingUser(user)} className="text-blue-600 mr-2">Edit</button>
-                      <button onClick={() => handleDeleteUser(user.id)} className="text-red-600">Delete</button>
+                      <button onClick={() => setEditingUser(user)} className="text-blue-600 mr-2 hover:text-blue-800">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleResetPassword(user.email)}
+                        className="text-yellow-600 mr-2 hover:text-yellow-800"
+                        title="Reset Password"
+                      >
+                        🔐 Reset
+                      </button>
+                      <button onClick={() => handleDeleteUser(user.id, user.email, user.role)} className="text-red-600 hover:text-red-800">
+                        Delete
+                      </button>
                     </td>
                   </>
                 )}

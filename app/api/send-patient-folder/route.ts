@@ -22,9 +22,9 @@ export async function POST(request: Request) {
       subject: `Medical Folder - ${patientName}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2 style="color: #2563eb;">Patient Medical Folder</h2>
+          <h2 style="color: #2563eb;">Patient Dental Folder</h2>
           <p>Dear ${patientName},</p>
-          <p>Please find attached your complete medical folder from Dental Clinic.</p>
+          <p>Please find attached your complete Dental folder from Finest Dental Care.</p>
           <p>This document includes:</p>
           <ul>
             <li>Patient Information</li>

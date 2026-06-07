@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     
     const supabase = await createClient()
     
-    // Generate invoice HTML
+    // Generate invoice HTML with LKR currency
     const invoiceHTML = generateInvoiceHTML(invoiceData, patientName)
     
     // Add test mode note to subject if in test mode
@@ -33,9 +33,9 @@ export async function POST(request: Request) {
     
     // Send email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'Dental Clinic <onboarding@resend.dev>',
+      from: 'Finest Dental Care <onboarding@resend.dev>',
       to: recipientEmail,
-      subject: `${subjectPrefix}Invoice ${invoiceData.invoice_number} from ${invoiceData.clinic_name || 'Dental Clinic'}`,
+      subject: `${subjectPrefix}Invoice ${invoiceData.invoice_number} from ${invoiceData.clinic_name || 'Finest Dental Care'}`,
       html: invoiceHTML,
     })
     
@@ -92,6 +92,11 @@ function generateInvoiceHTML(invoiceData: any, patientName: string) {
   const discountAmount = invoiceData.discount_amount || 0
   const subtotal = invoiceData.subtotal || 0
   const grandTotal = invoiceData.grand_total || invoiceData.total || 0
+  
+  // Format LKR currency
+  const formatLKR = (amount: number) => {
+    return `Rs. ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
   
   // Add test watermark if in test mode
   const testWatermark = TEST_MODE ? `
@@ -204,6 +209,9 @@ function generateInvoiceHTML(invoiceData: any, patientName: string) {
           border-radius: 20px;
           font-size: 12px;
         }
+        .currency-symbol {
+          font-weight: normal;
+        }
         @media print {
           body { background: white; }
           .container { max-width: 100%; }
@@ -214,14 +222,14 @@ function generateInvoiceHTML(invoiceData: any, patientName: string) {
       <div class="container">
         ${testWatermark}
         <div class="header">
-          <h1>🦷 ${invoiceData.clinic_name || 'Dental Clinic'}</h1>
-          <p>Professional Dental Care</p>
+          <h1>🦷 ${invoiceData.clinic_name || 'Finest Dental Care'}</h1>
+          <p>Your Trusted Dental Care Partner</p>
         </div>
         
         <div class="content">
           <div class="greeting">
             <p>Dear <strong>${patientName}</strong>,</p>
-            <p>Thank you for choosing our dental clinic. Please find your invoice details below:</p>
+            <p>Thank you for choosing Finest Dental Care. Please find your invoice details below:</p>
           </div>
           
           <div class="invoice-details">
@@ -233,7 +241,7 @@ function generateInvoiceHTML(invoiceData: any, patientName: string) {
           </div>
           
           <h3>📋 Treatment Details</h3>
-          </table>
+          <table>
             <thead>
               <tr><th>Description</th><th>Qty</th><th>Amount</th></tr>
             </thead>
@@ -244,19 +252,19 @@ function generateInvoiceHTML(invoiceData: any, patientName: string) {
                     <strong>${t.procedure_code}</strong> - ${t.procedure_name}<br>
                     <small style="color:#666;">${t.diagnosis || ''}</small>
                     ${t.tooth_number ? `<br><small style="color:#666;">Tooth #${t.tooth_number}</small>` : ''}
-                  </td>
-                  <td>${t.quantity}</td>
-                  <td>$${t.total_price?.toFixed(2)}</td>
+                   </td>
+                  <td style="text-align: center;">${t.quantity}</td>
+                  <td style="text-align: right;">${formatLKR(t.total_price)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
           
           <div class="totals">
-            <p>Subtotal: $${subtotal.toFixed(2)}</p>
-            ${discountAmount > 0 ? `<p>Discount: -$${discountAmount.toFixed(2)}</p>` : ''}
+            <p>Subtotal: ${formatLKR(subtotal)}</p>
+            ${discountAmount > 0 ? `<p>Discount: -${formatLKR(discountAmount)}</p>` : ''}
             <div class="grand-total">
-              Total Amount: $${grandTotal.toFixed(2)}
+              Total Amount: ${formatLKR(grandTotal)}
             </div>
           </div>
           
@@ -269,9 +277,9 @@ function generateInvoiceHTML(invoiceData: any, patientName: string) {
         
         <div class="footer">
           <p>
-            <strong>${invoiceData.clinic_name || 'Dental Clinic'}</strong><br>
-            ${invoiceData.clinic_address || '123 Dental Street, Health City'}<br>
-            📞 ${invoiceData.clinic_phone || '+1 234 567 8900'} | ✉️ ${invoiceData.clinic_email || 'info@dentalclinic.com'}<br>
+            <strong>${invoiceData.clinic_name || 'Finest Dental Care'}</strong><br>
+            ${invoiceData.clinic_address || '446/3, Third Lane, Nawala Rd, 10107'}<br>
+            📞 ${invoiceData.clinic_phone || '+94 77 288 6121'} | ✉️ ${invoiceData.clinic_email || 'contact@finestdentalcare.lk'}<br>
             © ${new Date().getFullYear()} All rights reserved.
           </p>
         </div>

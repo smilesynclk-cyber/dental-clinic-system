@@ -7,21 +7,18 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { email, password, firstName, lastName, role, clinicId } = body
 
-    // Validate required fields
     if (!email || !password || !firstName || !lastName || !role) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Verify the requesting user is an admin using regular client
+    // Verify admin
     const supabase = await createClient()
     const { data: { user: authUser } } = await supabase.auth.getUser()
-
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is admin (owner)
-    const { data: currentUser } = await supabaseAdmin
+    const { data: currentUser } = await supabase
       .from('users')
       .select('role')
       .eq('email', authUser.email)
@@ -31,67 +28,77 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    // Check if user already exists in auth
-    const { data: existingUsers } = await supabaseAdmin
+    // First, check if user already exists in public.users
+    const { data: existingPublicUser } = await supabase
       .from('users')
-      .select('email')
+      .select('id, email')
       .eq('email', email)
+      .maybeSingle()
 
-    if (existingUsers && existingUsers.length > 0) {
+    if (existingPublicUser) {
       return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 })
     }
 
-    // STEP 1: Create auth user using admin client
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        first_name: firstName,
-        last_name: lastName,
-        role: role
+    // Check if user exists in auth
+    let userId = null
+    const { data: existingAuthUser } = await supabaseAdmin.auth.admin.listUsers()
+    const foundUser = existingAuthUser?.users.find((u: any) => u.email === email)
+
+    if (foundUser) {
+      userId = foundUser.id
+    } else {
+      // Create new auth user
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { first_name: firstName, last_name: lastName, role }
+      })
+
+      if (authError) {
+        return NextResponse.json({ error: authError.message }, { status: 400 })
       }
-    })
-
-    if (authError) {
-      console.error('Auth error:', authError)
-      return NextResponse.json({ error: authError.message }, { status: 400 })
+      userId = authData.user.id
     }
 
-    if (!authData?.user) {
-      return NextResponse.json({ error: 'Failed to create user in auth system' }, { status: 400 })
-    }
-
-    // STEP 2: Add to public users table
+    // Insert into public.users - use a fresh ID if needed
     const { error: dbError } = await supabaseAdmin
       .from('users')
       .insert({
-        id: authData.user.id,
-        email: email,
+        id: userId,
+        email,
         first_name: firstName,
         last_name: lastName,
-        role: role,
+        role,
         clinic_id: clinicId || null,
         is_active: true
       })
 
     if (dbError) {
-      // Rollback - delete the auth user if db insert fails
-      console.error('DB error, rolling back...', dbError)
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+      // If duplicate key, try with a new UUID
+      if (dbError.code === '23505') {
+        const newId = crypto.randomUUID()
+        const { error: retryError } = await supabaseAdmin
+          .from('users')
+          .insert({
+            id: newId,
+            email,
+            first_name: firstName,
+            last_name: lastName,
+            role,
+            clinic_id: clinicId || null,
+            is_active: true
+          })
+        
+        if (retryError) {
+          return NextResponse.json({ error: retryError.message }, { status: 400 })
+        }
+        return NextResponse.json({ success: true, message: 'User added with new ID' })
+      }
       return NextResponse.json({ error: dbError.message }, { status: 400 })
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      user: {
-        id: authData.user.id,
-        email: email,
-        first_name: firstName,
-        last_name: lastName,
-        role: role
-      }
-    })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error creating user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -53,10 +53,10 @@ export default function InvoiceView({ invoice, onClose, onSendEmail }: any) {
         <div className="p-6" id="invoice-print">
           {/* Clinic Info */}
           <div className="border-b pb-4 mb-4">
-            <h3 className="text-xl font-bold text-gray-800">{invoice.clinic_name || 'Dental Clinic'}</h3>
-            <p className="text-sm text-gray-600">{invoice.clinic_address || '123 Dental Street, Health City'}</p>
-            <p className="text-sm text-gray-600">Phone: {invoice.clinic_phone || '+1 234 567 8900'}</p>
-            <p className="text-sm text-gray-600">Email: {invoice.clinic_email || 'info@dentalclinic.com'}</p>
+            <h3 className="text-xl font-bold text-gray-800">{invoice.clinic_name || 'Finest Dental Care'}</h3>
+            <p className="text-sm text-gray-600">{invoice.clinic_address || '446/3, Third Lane, Nawala Rd, 10107'}</p>
+            <p className="text-sm text-gray-600">Phone: {invoice.clinic_phone || '+94 77 288 6121'}</p>
+            <p className="text-sm text-gray-600">Email: {invoice.clinic_email || 'contact@finestdentalcare.lk'}</p>
           </div>
 
           {/* Patient & Doctor Info */}

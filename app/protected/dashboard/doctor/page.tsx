@@ -222,6 +222,18 @@ export default function DoctorDashboard() {
         >
           <span>🔍</span> View All Patients
         </Link>
+	<Link 
+  href="/protected/drugs" 
+  className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm flex items-center gap-2"
+>
+  <span>💊</span> Manage Drugs
+</Link>
+<Link 
+  href="/protected/procedures" 
+  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm flex items-center gap-2"
+>
+  <span>🦷</span> Manage Procedures
+</Link>
       </div>
 
       {/* Two Column Layout */}

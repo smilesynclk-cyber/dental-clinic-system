@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -10,6 +11,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isMounted, setIsMounted] = useState(false)
+  
+  // Reset password modal states
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetError, setResetError] = useState('')
+  const [resetSuccess, setResetSuccess] = useState('')
+  
   const router = useRouter()
   const supabase = createClient()
 
@@ -81,6 +90,29 @@ export default function LoginPage() {
     }
     
     setLoading(false)
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setResetLoading(true)
+    setResetError('')
+    setResetSuccess('')
+
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/update-password`,
+    })
+
+    if (error) {
+      setResetError(error.message)
+    } else {
+      setResetSuccess('Password reset instructions sent to your email!')
+      setTimeout(() => {
+        setShowResetModal(false)
+        setResetEmail('')
+        setResetSuccess('')
+      }, 3000)
+    }
+    setResetLoading(false)
   }
 
   // Prevent hydration mismatch by not rendering until mounted
@@ -157,6 +189,17 @@ export default function LoginPage() {
             />
           </div>
 
+          {/* Forgot Password Link */}
+          <div className="text-right">
+            <button
+              type="button"
+              onClick={() => setShowResetModal(true)}
+              className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Forgot Password?
+            </button>
+          </div>
+
           {error && (
             <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">
               {error}
@@ -197,6 +240,71 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Reset Password Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">🔐</span>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800">Reset Password</h2>
+              <p className="text-gray-500 mt-2">Enter your email to receive reset instructions</p>
+            </div>
+
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  placeholder="doctor@demo.com"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                />
+              </div>
+
+              {resetError && (
+                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">
+                  {resetError}
+                </div>
+              )}
+
+              {resetSuccess && (
+                <div className="bg-green-50 text-green-700 p-3 rounded-lg text-sm">
+                  {resetSuccess}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {resetLoading ? 'Sending...' : 'Send Reset Instructions'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowResetModal(false)
+                    setResetError('')
+                    setResetSuccess('')
+                    setResetEmail('')
+                  }}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

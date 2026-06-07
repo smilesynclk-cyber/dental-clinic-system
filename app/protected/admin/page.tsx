@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/client'
 import { useRouter } from 'next/navigation'
@@ -96,30 +97,72 @@ export default function AdminPanel() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Header */}
+        {/* Header with Monitoring Button */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
-          <p className="text-gray-500">System Administration Dashboard</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
+              <p className="text-gray-500">System Administration Dashboard</p>
+            </div>
+            <Link 
+              href="/protected/admin/monitoring" 
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 shadow-sm"
+            >
+              <span>📊</span>
+              System Monitoring
+            </Link>
+          </div>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          {/* Total Users Card */}
           <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-500">Total Users</p>
-            <p className="text-2xl font-bold">{totalUsers}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Total Users</p>
+                <p className="text-2xl font-bold">{totalUsers}</p>
+              </div>
+              <div className="text-2xl text-gray-400">👥</div>
+            </div>
           </div>
+
+          {/* Active Clinics Card */}
           <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-500">Active Clinics</p>
-            <p className="text-2xl font-bold">{activeClinics}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Active Clinics</p>
+                <p className="text-2xl font-bold">{activeClinics}</p>
+              </div>
+              <div className="text-2xl text-green-500">🏥</div>
+            </div>
           </div>
+
+          {/* Expiring Soon Card */}
           <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-500">Expiring Soon</p>
-            <p className="text-2xl font-bold text-yellow-600">{expiringSoon}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Expiring Soon</p>
+                <p className="text-2xl font-bold text-yellow-600">{expiringSoon}</p>
+              </div>
+              <div className="text-2xl">⚠️</div>
+            </div>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-500">Expired</p>
-            <p className="text-2xl font-bold text-red-600">{expired}</p>
-          </div>
+
+          {/* Monitoring Card - Quick Access */}
+          <Link 
+            href="/protected/admin/monitoring"
+            className="bg-blue-50 border border-blue-200 rounded-lg shadow p-4 hover:shadow-md transition cursor-pointer block"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-600">System Health</p>
+                <p className="text-2xl font-bold text-blue-700">Monitor</p>
+                <p className="text-xs text-gray-500 mt-1">View database stats</p>
+              </div>
+              <div className="text-3xl text-blue-500">📊</div>
+            </div>
+          </Link>
         </div>
 
         {/* Two Column Layout */}
@@ -166,20 +209,20 @@ export default function AdminPanel() {
                   
                   return (
                     <tr key={clinic.name}>
-                      <td className="px-4 py-3 text-sm">{clinic.name}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{clinic.name}</td>
                       <td className="px-4 py-3 text-sm capitalize">{clinic.subscription_plan || 'Free'}</td>
                       <td className="px-4 py-3 text-sm">
                         {clinic.subscription_expires_at 
                           ? new Date(clinic.subscription_expires_at).toLocaleDateString()
                           : 'N/A'}
                         {daysLeft !== null && daysLeft > 0 && (
-                          <span className={`text-xs ml-2 ${isExpiring ? 'text-yellow-600' : 'text-gray-400'}`}>
+                          <span className={`text-xs ml-2 ${isExpiring ? 'text-yellow-600 font-medium' : 'text-gray-400'}`}>
                             ({daysLeft} days left)
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs ${
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           clinic.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}>
                           {clinic.is_active ? 'Active' : 'Inactive'}
@@ -197,7 +240,7 @@ export default function AdminPanel() {
                               window.location.reload()
                             }
                           }}
-                          className={`text-sm ${clinic.is_active ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'}`}
+                          className={`text-sm font-medium ${clinic.is_active ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'}`}
                         >
                           {clinic.is_active ? 'Deactivate' : 'Activate'}
                         </button>

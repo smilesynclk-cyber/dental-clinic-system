@@ -68,13 +68,15 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
               
               {/* Admin Button */}
               {userRole === 'owner' && (
-                <Link 
-                  href="/protected/admin" 
-                  className="px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition"
-                >
-                  👑 Admin Panel
-                </Link>
-              )}
+  <>
+    <Link href="/protected/admin" className="px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg">
+      👑 Admin Panel
+    </Link>
+    <Link href="/protected/admin/monitoring" className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg">
+      📊 Monitoring
+    </Link>
+  </>
+)}
               
               {/* Logout Button */}
               <form action="/api/auth/logout" method="post">

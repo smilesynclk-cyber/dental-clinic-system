@@ -65,7 +65,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
 
     if (!patient) {
       setLoading(false)
-      setData(prev => ({ ...prev, patient: null }))
+      setData((prev: any) => ({ ...prev, patient: null }))
       return
     }
 

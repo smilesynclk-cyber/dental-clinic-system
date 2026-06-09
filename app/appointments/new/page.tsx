@@ -9,12 +9,15 @@ export default function NewAppointmentPage() {
   const [loading, setLoading] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [patients, setPatients] = useState<any[]>([])
+  const [doctors, setDoctors] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
+  const [selectedDoctor, setSelectedDoctor] = useState<any>(null)
   const [showPatientSearch, setShowPatientSearch] = useState(true)
   const [sendingEmail, setSendingEmail] = useState(false)
   const [formData, setFormData] = useState({
     patient_id: '',
+    doctor_id: '',
     date: new Date().toISOString().split('T')[0],
     time: '09:00',
     duration_minutes: 30,
@@ -38,6 +41,19 @@ export default function NewAppointmentPage() {
     }
     checkAuth()
   }, [router, supabase])
+
+  // Fetch doctors on mount
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, email')
+        .eq('role', 'doctor')
+        .eq('is_active', true)
+      setDoctors(data || [])
+    }
+    fetchDoctors()
+  }, [])
 
   // Search patients
   useEffect(() => {
@@ -72,11 +88,11 @@ export default function NewAppointmentPage() {
             duration_minutes: appointmentData.duration_minutes,
             room_number: appointmentData.room_number,
             notes: appointmentData.notes,
-            doctor_name: 'Dental Team',
-            clinic_name: 'Dental Clinic',
-            clinic_phone: '+1 234 567 8900',
-            clinic_email: 'info@dentalclinic.com',
-            clinic_address: '123 Dental Street, Health City'
+            doctor_name: selectedDoctor ? `Dr. ${selectedDoctor.first_name} ${selectedDoctor.last_name}` : 'Dental Team',
+            clinic_name: 'Finest Dental Care',
+            clinic_phone: '+94 77 288 6121',
+            clinic_email: 'contact@finestdentalcare.lk',
+            clinic_address: '446/3, Third Lane, Nawala Rd, 10107'
           }
         })
       })
@@ -122,8 +138,9 @@ export default function NewAppointmentPage() {
       }
       
       // Show success message
+      const doctorName = selectedDoctor ? `Dr. ${selectedDoctor.first_name} ${selectedDoctor.last_name}` : 'Not assigned'
       const emailStatus = selectedPatient?.email ? 'Confirmation email sent.' : 'No email on file to send confirmation.'
-      alert(`✓ Appointment scheduled successfully!\n${emailStatus}`)
+      alert(`✓ Appointment scheduled successfully with ${doctorName}!\n${emailStatus}`)
       
       router.push('/appointments')
       router.refresh()
@@ -135,6 +152,11 @@ export default function NewAppointmentPage() {
     setSelectedPatient(patient)
     setFormData({ ...formData, patient_id: patient.id })
     setShowPatientSearch(false)
+  }
+
+  function selectDoctor(doctor: any) {
+    setSelectedDoctor(doctor)
+    setFormData({ ...formData, doctor_id: doctor.id })
   }
 
   // Show loading while checking auth
@@ -173,7 +195,7 @@ export default function NewAppointmentPage() {
             {/* Patient Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Patient *
+                Select Patient *
               </label>
               
               {showPatientSearch ? (
@@ -231,6 +253,47 @@ export default function NewAppointmentPage() {
                   >
                     Change Patient
                   </button>
+                </div>
+              )}
+            </div>
+
+            {/* Doctor Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Doctor *
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {doctors.map((doctor) => (
+                  <button
+                    key={doctor.id}
+                    type="button"
+                    onClick={() => selectDoctor(doctor)}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      selectedDoctor?.id === doctor.id
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                        : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span className="text-xl">👨‍⚕️</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-800">
+                          Dr. {doctor.first_name} {doctor.last_name}
+                        </div>
+                        <div className="text-sm text-gray-500">{doctor.email}</div>
+                      </div>
+                      {selectedDoctor?.id === doctor.id && (
+                        <div className="ml-auto text-blue-600">✓</div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {doctors.length === 0 && (
+                <div className="text-center p-4 bg-yellow-50 rounded-lg text-yellow-700">
+                  No doctors found. Please add doctors to the system first.
                 </div>
               )}
             </div>
@@ -348,16 +411,18 @@ export default function NewAppointmentPage() {
               />
             </div>
 
-            {/* Info Box */}
+            {/* Info Boxes */}
             {selectedPatient && !selectedPatient.email && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
                 ⚠️ This patient has no email address. Confirmation email will not be sent.
               </div>
             )}
 
-            {selectedPatient && selectedPatient.email && (
+            {selectedPatient && selectedPatient.email && selectedDoctor && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
                 ✅ Confirmation email will be sent to: {selectedPatient.email}
+                <br />
+                👨‍⚕️ Appointment with: Dr. {selectedDoctor.first_name} {selectedDoctor.last_name}
               </div>
             )}
 
@@ -365,7 +430,7 @@ export default function NewAppointmentPage() {
             <div className="flex gap-3 pt-4">
               <button
                 type="submit"
-                disabled={loading || !formData.patient_id}
+                disabled={loading || !formData.patient_id || !formData.doctor_id}
                 className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition font-medium"
               >
                 {loading ? (

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { useCurrency } from '@/lib/currency-context'
 import { useEffect, useState } from 'react'
+import AppointmentCalendar from '@/components/AppointmentCalendar'
 
 export default function DoctorDashboard() {
   const { format } = useCurrency()
@@ -48,7 +49,6 @@ export default function DoctorDashboard() {
     const clinic = dbUser?.clinics
     const today = new Date().toISOString().split('T')[0]
 
-    // Fetch data in parallel for better performance
     const [
       appointmentsResult,
       allPatientsResult,
@@ -222,69 +222,28 @@ export default function DoctorDashboard() {
         >
           <span>🔍</span> View All Patients
         </Link>
-	<Link 
-  href="/protected/drugs" 
-  className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm flex items-center gap-2"
->
-  <span>💊</span> Manage Drugs
-</Link>
-<Link 
-  href="/protected/procedures" 
-  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm flex items-center gap-2"
->
-  <span>🦷</span> Manage Procedures
-</Link>
+        <Link 
+          href="/protected/drugs" 
+          className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm flex items-center gap-2"
+        >
+          <span>💊</span> Manage Drugs
+        </Link>
+        <Link 
+          href="/protected/procedures" 
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm flex items-center gap-2"
+        >
+          <span>🦷</span> Manage Procedures
+        </Link>
       </div>
 
-      {/* Two Column Layout */}
+      {/* Appointment Calendar - Full Width */}
+      <div className="mb-8">
+        <AppointmentCalendar clinicId={data.clinic?.id} />
+      </div>
+
+      {/* Two Column Layout for Additional Info */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Today's Schedule */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-800">📅 Today's Schedule</h2>
-            <p className="text-sm text-gray-500 mt-0.5">{data.appointments?.length || 0} appointments</p>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {data.appointments && data.appointments.length > 0 ? (
-              data.appointments.map((apt: any) => (
-                <div key={apt.id} className="p-4 hover:bg-gray-50 transition">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                      <div className="w-14 text-center">
-                        <p className="text-lg font-bold text-gray-800">{apt.time.slice(0,5)}</p>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          {apt.patients?.first_name} {apt.patients?.last_name}
-                        </p>
-                        <p className="text-sm text-gray-500">{apt.type}</p>
-                        {apt.patients?.phone && (
-                          <p className="text-xs text-gray-400 mt-0.5">📞 {apt.patients.phone}</p>
-                        )}
-                      </div>
-                    </div>
-                    <Link 
-                      href={`/patients/${apt.patients?.id}`} 
-                      className="text-blue-600 text-sm hover:underline"
-                    >
-                      View Chart →
-                    </Link>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-8 text-center text-gray-500">
-                <p className="text-lg mb-2">😊</p>
-                <p>No appointments scheduled for today</p>
-                <Link href="/appointments/new" className="text-blue-600 text-sm mt-2 inline-block">
-                  + Schedule an appointment
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Recent Patients */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
@@ -321,6 +280,43 @@ export default function DoctorDashboard() {
                 <p>No patients yet</p>
                 <Link href="/patients/new" className="text-blue-600 text-sm mt-2 inline-block">
                   + Register your first patient
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Upcoming Appointments Summary */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-800">⏰ Upcoming Appointments</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Scheduled appointments</p>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {data.appointments && data.appointments.length > 0 ? (
+              data.appointments.map((apt: any) => (
+                <div key={apt.id} className="p-4 hover:bg-gray-50 transition">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-medium text-gray-800">
+                        {apt.time.slice(0,5)} - {apt.patients?.first_name} {apt.patients?.last_name}
+                      </p>
+                      <p className="text-sm text-gray-500">{apt.type}</p>
+                    </div>
+                    <Link 
+                      href={`/patients/${apt.patients?.id}`} 
+                      className="text-blue-600 text-sm hover:underline"
+                    >
+                      View →
+                    </Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                <p>No upcoming appointments</p>
+                <Link href="/appointments/new" className="text-blue-600 text-sm mt-2 inline-block">
+                  + Schedule appointment
                 </Link>
               </div>
             )}

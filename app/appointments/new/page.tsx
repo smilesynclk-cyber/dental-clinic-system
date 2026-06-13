@@ -121,12 +121,41 @@ export default function NewAppointmentPage() {
       return
     }
 
+    // Get the user's clinic_id
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('clinic_id')
+      .eq('email', session.user.email)
+      .single()
+
+    if (userError) {
+      console.error('Error fetching user:', userError)
+      alert('Error fetching clinic information. Please try again.')
+      setLoading(false)
+      return
+    }
+
+    if (!userData?.clinic_id) {
+      alert('No clinic associated with your account. Please contact administrator.')
+      setLoading(false)
+      return
+    }
+
+    // Add clinic_id to the form data
+    const appointmentData = {
+      ...formData,
+      clinic_id: userData.clinic_id
+    }
+
+    console.log('Saving appointment with clinic_id:', userData.clinic_id)
+
     const { data, error } = await supabase
       .from('appointments')
-      .insert([formData])
+      .insert([appointmentData])
       .select()
 
     if (error) {
+      console.error('Insert error:', error)
       alert('Error: ' + error.message)
       setLoading(false)
     } else {

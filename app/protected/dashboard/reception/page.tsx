@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import InvoiceList from '@/components/InvoiceList'
 import AppointmentCalendar from '@/components/AppointmentCalendar'
+import TrialStatusCard from '@/components/TrialStatusCard'
 
 export default async function ReceptionDashboard() {
   const supabase = await createClient()
@@ -36,6 +37,17 @@ export default async function ReceptionDashboard() {
     month: 'long', 
     day: 'numeric' 
   })
+
+  // Fetch trial info for the clinic
+  let trialInfo = null
+  if (clinic) {
+    const { data: clinicData } = await supabase
+      .from('clinics')
+      .select('is_trial, trial_start_date, trial_end_date')
+      .eq('id', clinic.id)
+      .single()
+    trialInfo = clinicData
+  }
 
   // Fetch counts for stats
   const { count: todayCount } = await supabase
@@ -129,6 +141,11 @@ export default async function ReceptionDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* Trial Status Card - ADDED HERE */}
+        <div className="mb-8">
+          <TrialStatusCard initialTrialInfo={trialInfo} />
+        </div>
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-green-50 border-green-200 rounded-xl shadow-sm p-4 border">

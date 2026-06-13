@@ -10,6 +10,8 @@ export default function NewPatientPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [checkingAuth, setCheckingAuth] = useState(true)
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
+  
   const router = useRouter()
   const supabase = createClient()
 
@@ -39,24 +41,83 @@ export default function NewPatientPage() {
     checkAuth()
   }, [router, supabase])
 
-  // Show loading while checking auth
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="text-4xl mb-4">🦷</div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  // Real-time duplicate check for phone number
+  useEffect(() => {
+    const checkDuplicatePhone = async () => {
+      if (!formData.phone || formData.phone.trim() === '') {
+        setError('')
+        return
+      }
+
+      setIsCheckingDuplicate(true)
+      
+      // Check if phone number already exists
+      const { data: existingPatient, error } = await supabase
+        .from('patients')
+        .select('id, first_name, last_name, phone')
+        .eq('phone', formData.phone.trim())
+        .maybeSingle()
+
+      if (error) {
+        console.error('Duplicate check error:', error)
+        setIsCheckingDuplicate(false)
+        return
+      }
+
+      if (existingPatient) {
+        setError(`⚠️ Phone number ${formData.phone} is already registered to ${existingPatient.first_name} ${existingPatient.last_name}. Please use a different phone number.`)
+      } else {
+        setError('')
+      }
+      
+      setIsCheckingDuplicate(false)
+    }
+
+    const timer = setTimeout(() => {
+      if (formData.phone && formData.phone.length >= 10) {
+        checkDuplicatePhone()
+      }
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [formData.phone, supabase])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setSuccess('')
+
+    // Validation
+    if (!formData.first_name || !formData.last_name) {
+      setError('First name and last name are required')
+      setLoading(false)
+      return
+    }
+
+    if (!formData.phone) {
+      setError('Phone number is required')
+      setLoading(false)
+      return
+    }
+
+    // Final duplicate check before insert
+    const { data: existingPatient, error: checkError } = await supabase
+      .from('patients')
+      .select('id, first_name, last_name, phone')
+      .eq('phone', formData.phone.trim())
+      .maybeSingle()
+
+    if (checkError) {
+      setError('Error checking for duplicates: ' + checkError.message)
+      setLoading(false)
+      return
+    }
+
+    if (existingPatient) {
+      setError(`Cannot register: Phone number ${formData.phone} is already registered to ${existingPatient.first_name} ${existingPatient.last_name}.`)
+      setLoading(false)
+      return
+    }
 
     // Get current user's session
     const { data: { session } } = await supabase.auth.getSession()
@@ -67,10 +128,8 @@ export default function NewPatientPage() {
       return
     }
 
-    // First, get or create a clinic
+    // Get or create clinic
     let clinicId = null
-
-    // Try to get existing clinic
     const { data: existingClinic } = await supabase
       .from('clinics')
       .select('id')
@@ -79,7 +138,6 @@ export default function NewPatientPage() {
     if (existingClinic) {
       clinicId = existingClinic.id
     } else {
-      // Create a default clinic if none exists
       const { data: newClinic, error: clinicError } = await supabase
         .from('clinics')
         .insert([{
@@ -100,14 +158,13 @@ export default function NewPatientPage() {
       }
     }
 
-    // Get current user's database record
+    // Get current user
     const { data: userData } = await supabase
       .from('users')
       .select('clinic_id, id')
       .eq('email', session.user.email)
       .maybeSingle()
 
-    // Update the current user's clinic_id if not set
     if (userData && !userData.clinic_id) {
       await supabase
         .from('users')
@@ -115,21 +172,21 @@ export default function NewPatientPage() {
         .eq('id', userData.id)
     }
 
-    // Insert patient with clinic_id
+    // Insert patient
     const { data, error: insertError } = await supabase
       .from('patients')
       .insert([{
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        phone: formData.phone,
-        email: formData.email,
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email?.trim() || null,
         date_of_birth: formData.date_of_birth || null,
-        address: formData.address,
-        emergency_contact_name: formData.emergency_contact_name,
-        emergency_contact_phone: formData.emergency_contact_phone,
-        insurance_provider: formData.insurance_provider,
-        insurance_member_id: formData.insurance_member_id,
-        notes: formData.notes,
+        address: formData.address || null,
+        emergency_contact_name: formData.emergency_contact_name || null,
+        emergency_contact_phone: formData.emergency_contact_phone || null,
+        insurance_provider: formData.insurance_provider || null,
+        insurance_member_id: formData.insurance_member_id || null,
+        notes: formData.notes || null,
         clinic_id: clinicId,
         status: 'active'
       }])
@@ -137,9 +194,13 @@ export default function NewPatientPage() {
       .maybeSingle()
 
     if (insertError) {
-      setError(insertError.message)
+      if (insertError.code === '23505') {
+        setError('❌ This phone number is already registered to another patient. Please use a different phone number.')
+      } else {
+        setError('Registration failed: ' + insertError.message)
+      }
     } else if (data) {
-      setSuccess(`Patient ${formData.first_name} ${formData.last_name} registered successfully!`)
+      setSuccess(`✓ Patient ${formData.first_name} ${formData.last_name} registered successfully!`)
       setTimeout(() => {
         router.push(`/patients/${data.id}`)
       }, 1500)
@@ -149,9 +210,20 @@ export default function NewPatientPage() {
     setLoading(false)
   }
 
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-4xl mb-4">🦷</div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
@@ -212,14 +284,21 @@ export default function NewPatientPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone
+                  Phone Number *
                 </label>
                 <input
                   type="tel"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
+                    error && error.includes('phone') ? 'border-red-500' : ''
+                  }`}
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  placeholder="0712345678"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  {isCheckingDuplicate ? 'Checking availability...' : 'Phone number must be unique'}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -331,10 +410,10 @@ export default function NewPatientPage() {
           <div className="bg-gray-50 px-6 py-4 flex gap-3">
             <button
               type="submit"
-              disabled={loading}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+              disabled={loading || isCheckingDuplicate || !!error}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {loading ? 'Registering...' : 'Register Patient'}
+              {loading ? 'Registering...' : isCheckingDuplicate ? 'Checking...' : 'Register Patient'}
             </button>
             <Link
               href="/patients"

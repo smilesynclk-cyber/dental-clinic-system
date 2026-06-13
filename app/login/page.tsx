@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [isMounted, setIsMounted] = useState(false)
   const [warning, setWarning] = useState('')
+  const [debugInfo, setDebugInfo] = useState<string>('')
   
   // Reset password modal states
   const [showResetModal, setShowResetModal] = useState(false)
@@ -32,8 +33,10 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     setWarning('')
+    setDebugInfo('')
 
     console.log('Attempting login for:', email)
+    setDebugInfo('1. Attempting authentication...')
 
     // Step 1: Sign in with Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -44,11 +47,13 @@ export default function LoginPage() {
     if (authError) {
       console.error('Auth error:', authError)
       setError(authError.message)
+      setDebugInfo(`Auth failed: ${authError.message}`)
       setLoading(false)
       return
     }
 
     console.log('Auth success:', authData.user?.id)
+    setDebugInfo(`2. Auth success: ${authData.user?.id}`)
 
     // Wait a moment for session to be established
     await new Promise(resolve => setTimeout(resolve, 1500))
@@ -76,11 +81,12 @@ export default function LoginPage() {
       .maybeSingle()
 
     console.log('User data:', userData)
-    console.log('User error:', userError)
+    setDebugInfo(`3. User data: role=${userData?.role}, clinic_id=${userData?.clinic_id}`)
 
     if (userError) {
       console.error('Error fetching user role:', userError)
       setError('Database error: ' + (userError.message || 'Unknown error'))
+      setDebugInfo(`User fetch error: ${userError.message}`)
       await supabase.auth.signOut()
       setLoading(false)
       return
@@ -89,6 +95,7 @@ export default function LoginPage() {
     if (!userData) {
       console.error('No user record found for email:', email)
       setError('User account not found. Please contact administrator.')
+      setDebugInfo('No user record in users table')
       await supabase.auth.signOut()
       setLoading(false)
       return
@@ -98,22 +105,31 @@ export default function LoginPage() {
     if (!userData.clinic_id) {
       console.error('User has no clinic assigned:', email)
       setError('Account not configured. Please contact administrator.')
+      setDebugInfo('User has NULL clinic_id')
       await supabase.auth.signOut()
       setLoading(false)
       return
     }
 
     // Step 4: Get clinic data - handle array response
-    // The `clinics` relation returns an array, so we need to get the first item
     const clinicArray = userData.clinics as any[]
     const clinicData = clinicArray && clinicArray.length > 0 ? clinicArray[0] : null
     
+    console.log('Clinic array:', clinicArray)
+    console.log('Clinic data:', clinicData)
+    setDebugInfo(`4. Clinic data: exists=${!!clinicData}, is_active=${clinicData?.is_active}, name=${clinicData?.name}`)
+    
     const isOwnerOrAdmin = userData.role === 'owner' || userData.role === 'admin'
-    const isClinicActive = clinicData ? clinicData.is_active !== false : false
+    const isClinicActive = clinicData ? clinicData.is_active === true : false
+    
+    console.log('Is owner/admin:', isOwnerOrAdmin)
+    console.log('Is clinic active:', isClinicActive)
+    setDebugInfo(`5. Owner/Admin: ${isOwnerOrAdmin}, Clinic Active: ${isClinicActive}`)
     
     if (!isClinicActive && !isOwnerOrAdmin) {
       console.error('Clinic is deactivated:', clinicData?.name)
       setError('Your clinic account has been deactivated. Please contact your administrator.')
+      setDebugInfo(`Clinic deactivated: ${clinicData?.name}`)
       await supabase.auth.signOut()
       setLoading(false)
       return
@@ -123,12 +139,12 @@ export default function LoginPage() {
     if (!isClinicActive && isOwnerOrAdmin) {
       console.warn('Clinic is deactivated but allowing admin/owner login:', clinicData?.name)
       setWarning('⚠️ This clinic is currently deactivated. You can access the system but other users cannot.')
+      setDebugInfo(`Warning: Clinic deactivated but admin allowed`)
     }
 
     // Step 5: Check TRIAL status
     let isTrialValid = true
     let trialDaysLeft = null
-    let trialMessage = ''
     
     if (clinicData && clinicData.is_trial === true) {
       const trialEnd = clinicData.trial_end_date ? new Date(clinicData.trial_end_date) : null
@@ -141,70 +157,30 @@ export default function LoginPage() {
         if (!isTrialValid && !isOwnerOrAdmin) {
           console.error('Trial expired:', clinicData.trial_end_date)
           setError('Your free trial has expired. Please contact the clinic administrator to upgrade your subscription.')
+          setDebugInfo(`Trial expired on: ${clinicData.trial_end_date}`)
           await supabase.auth.signOut()
           setLoading(false)
           return
         }
         
-        // Show warning for expiring trial (non-admin users)
+        // Show warning for expiring trial
         if (isTrialValid && trialDaysLeft <= 3 && trialDaysLeft > 0 && !isOwnerOrAdmin) {
-          trialMessage = `⚠️ Your free trial ends in ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''}. Please contact the clinic administrator to upgrade.`
-          setWarning(trialMessage)
-          console.log('Trial expiring soon:', trialDaysLeft, 'days left')
-        }
-        
-        // Show info for trial users (admin)
-        if (isTrialValid && isOwnerOrAdmin) {
-          console.log('Clinic is on trial:', trialDaysLeft, 'days remaining')
+          setWarning(`⚠️ Your free trial ends in ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''}. Please contact the clinic administrator to upgrade.`)
         }
       }
     }
 
-    // Step 6: Check subscription - Allow owners/admins even if expired
-    let isSubscriptionValid = true
-    let daysLeft = null
-    
-    if (clinicData && clinicData.subscription_expires_at && !clinicData.is_trial) {
-      const expiryDate = new Date(clinicData.subscription_expires_at)
-      const today = new Date()
-      isSubscriptionValid = expiryDate >= today
-      daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
-      
-      if (!isSubscriptionValid && !isOwnerOrAdmin) {
-        console.error('Subscription expired:', clinicData.subscription_expires_at)
-        setError('Your clinic subscription has expired. Please contact administrator to renew.')
-        await supabase.auth.signOut()
-        setLoading(false)
-        return
-      }
-      
-      // Show warning for expiring subscription
-      if (isSubscriptionValid && daysLeft <= 7 && daysLeft > 0 && !isOwnerOrAdmin) {
-        const subWarning = `⚠️ Your subscription ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Please contact the clinic administrator.`
-        setWarning(subWarning)
-        console.log('Subscription expiring soon:', daysLeft, 'days left')
-      }
-    }
+    console.log('Login successful! Redirecting...')
+    setDebugInfo(`6. Login successful! Redirecting to: ${userData.role}`)
 
-    console.log('User role:', userData.role)
-    console.log('Clinic status:', clinicData?.is_active ? 'Active' : 'Inactive')
-    console.log('Is Trial:', clinicData?.is_trial || false)
-    if (trialDaysLeft) console.log('Trial days left:', trialDaysLeft)
-    console.log('Subscription valid:', isSubscriptionValid)
-    if (daysLeft) console.log('Subscription days left:', daysLeft)
-
-    // Step 7: Redirect based on role
+    // Step 6: Redirect based on role
     if (userData.role === 'doctor') {
-      console.log('Redirecting to doctor dashboard')
       router.push('/protected/dashboard/doctor')
     } else if (userData.role === 'owner' || userData.role === 'admin') {
-      console.log('Redirecting to admin panel')
       router.push('/protected/admin')
     } else if (userData.role === 'receptionist') {
-      console.log('Redirecting to reception dashboard')
       router.push('/protected/dashboard/reception')
     } else {
-      console.log('Redirecting to default dashboard')
       router.push('/dashboard')
     }
     
@@ -276,6 +252,16 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-gray-800">Finest Dental Care</h1>
           <p className="text-gray-500 mt-2">Sign in to your account</p>
         </div>
+
+        {/* Debug Info - Remove after fixing */}
+        {debugInfo && (
+          <div className="mb-4 p-2 bg-gray-100 border border-gray-300 rounded-lg text-xs font-mono">
+            <details>
+              <summary className="cursor-pointer text-gray-600">Debug Info (Click to expand)</summary>
+              <pre className="mt-2 text-gray-500 whitespace-pre-wrap">{debugInfo}</pre>
+            </details>
+          </div>
+        )}
 
         {/* Warning Banner */}
         {warning && (
@@ -349,28 +335,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Demo Accounts Info - Commented out for production */}
-        {/*
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <p className="text-center text-sm text-gray-600 mb-3">Demo Accounts</p>
-          <div className="space-y-2 text-sm">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="font-medium text-gray-800">👨‍⚕️ Doctor</p>
-              <p className="text-gray-500 text-xs">doctor@demo.com / doctor123</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="font-medium text-gray-800">💼 Receptionist</p>
-              <p className="text-gray-500 text-xs">reception@demo.com / reception123</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3 bg-purple-50">
-              <p className="font-medium text-purple-800">👑 Owner/Admin</p>
-              <p className="text-gray-500 text-xs">owner@demo.com / owner123</p>
-              <p className="text-xs text-purple-600 mt-1">✓ Can login even when trial expired</p>
-            </div>
-          </div>
-        </div>
-        */}
       </div>
 
       {/* Reset Password Modal */}

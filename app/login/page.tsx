@@ -103,11 +103,12 @@ export default function LoginPage() {
       return
     }
 
-    // Step 4: Check clinic status - Allow owners/admins even if clinic is deactivated
-    const isOwnerOrAdmin = userData.role === 'owner' || userData.role === 'admin'
+    // Step 4: Get clinic data - handle array response
+    // The `clinics` relation returns an array, so we need to get the first item
+    const clinicArray = userData.clinics as any[]
+    const clinicData = clinicArray && clinicArray.length > 0 ? clinicArray[0] : null
     
-    // Safely get clinic data (handle both object and array responses)
-    const clinicData = userData.clinics && !Array.isArray(userData.clinics) ? userData.clinics : null
+    const isOwnerOrAdmin = userData.role === 'owner' || userData.role === 'admin'
     const isClinicActive = clinicData ? clinicData.is_active !== false : false
     
     if (!isClinicActive && !isOwnerOrAdmin) {
@@ -261,7 +262,6 @@ export default function LoginPage() {
               alt="Dental Clinic Logo" 
               className="w-16 h-16 object-contain"
               onError={(e) => {
-                // Fallback to emoji if image fails to load
                 e.currentTarget.style.display = 'none'
                 const parent = e.currentTarget.parentElement
                 if (parent) {

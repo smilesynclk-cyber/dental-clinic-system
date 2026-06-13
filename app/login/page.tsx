@@ -105,10 +105,13 @@ export default function LoginPage() {
 
     // Step 4: Check clinic status - Allow owners/admins even if clinic is deactivated
     const isOwnerOrAdmin = userData.role === 'owner' || userData.role === 'admin'
-    const isClinicActive = userData.clinics && userData.clinics.is_active !== false
+    
+    // Safely get clinic data (handle both object and array responses)
+    const clinicData = userData.clinics && !Array.isArray(userData.clinics) ? userData.clinics : null
+    const isClinicActive = clinicData ? clinicData.is_active !== false : false
     
     if (!isClinicActive && !isOwnerOrAdmin) {
-      console.error('Clinic is deactivated:', userData.clinics?.name)
+      console.error('Clinic is deactivated:', clinicData?.name)
       setError('Your clinic account has been deactivated. Please contact your administrator.')
       await supabase.auth.signOut()
       setLoading(false)
@@ -117,17 +120,17 @@ export default function LoginPage() {
 
     // Show warning but allow login for deactivated clinics (owners/admins only)
     if (!isClinicActive && isOwnerOrAdmin) {
-      console.warn('Clinic is deactivated but allowing admin/owner login:', userData.clinics?.name)
+      console.warn('Clinic is deactivated but allowing admin/owner login:', clinicData?.name)
       setWarning('⚠️ This clinic is currently deactivated. You can access the system but other users cannot.')
     }
 
-    // Step 5: Check TRIAL status (NEW)
+    // Step 5: Check TRIAL status
     let isTrialValid = true
     let trialDaysLeft = null
     let trialMessage = ''
     
-    if (userData.clinics && userData.clinics.is_trial === true) {
-      const trialEnd = userData.clinics.trial_end_date ? new Date(userData.clinics.trial_end_date) : null
+    if (clinicData && clinicData.is_trial === true) {
+      const trialEnd = clinicData.trial_end_date ? new Date(clinicData.trial_end_date) : null
       const today = new Date()
       
       if (trialEnd) {
@@ -135,7 +138,7 @@ export default function LoginPage() {
         isTrialValid = trialDaysLeft > 0
         
         if (!isTrialValid && !isOwnerOrAdmin) {
-          console.error('Trial expired:', userData.clinics.trial_end_date)
+          console.error('Trial expired:', clinicData.trial_end_date)
           setError('Your free trial has expired. Please contact the clinic administrator to upgrade your subscription.')
           await supabase.auth.signOut()
           setLoading(false)
@@ -160,14 +163,14 @@ export default function LoginPage() {
     let isSubscriptionValid = true
     let daysLeft = null
     
-    if (userData.clinics && userData.clinics.subscription_expires_at && !userData.clinics.is_trial) {
-      const expiryDate = new Date(userData.clinics.subscription_expires_at)
+    if (clinicData && clinicData.subscription_expires_at && !clinicData.is_trial) {
+      const expiryDate = new Date(clinicData.subscription_expires_at)
       const today = new Date()
       isSubscriptionValid = expiryDate >= today
       daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
       
       if (!isSubscriptionValid && !isOwnerOrAdmin) {
-        console.error('Subscription expired:', userData.clinics.subscription_expires_at)
+        console.error('Subscription expired:', clinicData.subscription_expires_at)
         setError('Your clinic subscription has expired. Please contact administrator to renew.')
         await supabase.auth.signOut()
         setLoading(false)
@@ -183,8 +186,8 @@ export default function LoginPage() {
     }
 
     console.log('User role:', userData.role)
-    console.log('Clinic status:', userData.clinics?.is_active ? 'Active' : 'Inactive')
-    console.log('Is Trial:', userData.clinics?.is_trial || false)
+    console.log('Clinic status:', clinicData?.is_active ? 'Active' : 'Inactive')
+    console.log('Is Trial:', clinicData?.is_trial || false)
     if (trialDaysLeft) console.log('Trial days left:', trialDaysLeft)
     console.log('Subscription valid:', isSubscriptionValid)
     if (daysLeft) console.log('Subscription days left:', daysLeft)
@@ -291,7 +294,7 @@ export default function LoginPage() {
               type="email"
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              placeholder="doctor@demo.com"
+              placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -305,7 +308,7 @@ export default function LoginPage() {
               type="password"
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -347,7 +350,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Demo Accounts Info */}
+        {/* Demo Accounts Info - Commented out for production */}
+        {/*
         <div className="mt-6 pt-6 border-t border-gray-200">
           <p className="text-center text-sm text-gray-600 mb-3">Demo Accounts</p>
           <div className="space-y-2 text-sm">
@@ -366,6 +370,7 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
+        */}
       </div>
 
       {/* Reset Password Modal */}
@@ -389,7 +394,7 @@ export default function LoginPage() {
                   type="email"
                   required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  placeholder="doctor@demo.com"
+                  placeholder="Enter your email"
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
                 />

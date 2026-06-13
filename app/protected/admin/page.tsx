@@ -13,8 +13,6 @@ export default function AdminPanel() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
   const [editingUser, setEditingUser] = useState<any>(null)
-  const [showResetPassword, setShowResetPassword] = useState<any>(null)
-  const [togglingClinic, setTogglingClinic] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -59,15 +57,13 @@ export default function AdminPanel() {
   async function loadData() {
     setLoading(true)
     
-    // Get all users with clinic info
     const { data: usersData } = await supabase
       .from('users')
-      .select('*, clinics(id, name)')
+      .select('*, clinics(name)')
       .order('created_at', { ascending: false })
 
     setUsers(usersData || [])
 
-    // Get system settings
     const { data: settingsData } = await supabase
       .from('system_settings')
       .select('*')
@@ -75,38 +71,12 @@ export default function AdminPanel() {
 
     setSettings(settingsData || {})
 
-    // Get subscription info with clinic IDs
     const { data: subsData } = await supabase
       .from('clinics')
-      .select('id, name, subscription_plan, subscription_expires_at, is_active')
-      .order('name')
+      .select('name, subscription_plan, subscription_expires_at, is_active')
 
     setSubscriptions(subsData || [])
     setLoading(false)
-  }
-
-  async function toggleClinicStatus(clinicId: string, currentStatus: boolean) {
-    if (!confirm(`Are you sure you want to ${currentStatus ? 'deactivate' : 'activate'} this clinic?`)) {
-      return
-    }
-
-    setTogglingClinic(clinicId)
-    try {
-      const { error } = await supabase
-        .from('clinics')
-        .update({ is_active: !currentStatus })
-        .eq('id', clinicId)
-
-      if (error) throw error
-
-      alert(`✓ Clinic ${currentStatus ? 'deactivated' : 'activated'} successfully!`)
-      await loadData() // Reload the data to refresh the UI
-    } catch (error: any) {
-      console.error('Error toggling clinic status:', error)
-      alert('Error: ' + error.message)
-    } finally {
-      setTogglingClinic(null)
-    }
   }
 
   async function handleAddUser(e: React.FormEvent) {
@@ -190,27 +160,7 @@ export default function AdminPanel() {
     }
   }
 
-  async function handleResetPassword(userId: string, userEmail: string) {
-    if (!showResetPassword) {
-      setShowResetPassword({ id: userId, email: userEmail })
-      return
-    }
-
-    setLoading(true)
-    try {
-      const { error } = await supabase.auth.admin.resetPasswordForEmail(userEmail)
-      
-      if (error) throw error
-
-      alert('✓ Password reset email sent!')
-      setShowResetPassword(null)
-    } catch (error: any) {
-      console.error('Error resetting password:', error)
-      alert('Error: ' + error.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Removed resetPassword function - requires admin privileges
 
   async function handleDeleteUser(userId: string, userEmail: string) {
     if (!confirm(`Are you sure you want to delete ${userEmail}? This action cannot be undone.`)) return
@@ -231,6 +181,21 @@ export default function AdminPanel() {
       alert('Error: ' + error.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function toggleClinicStatus(clinicName: string, currentStatus: boolean) {
+    if (confirm(`Toggle status for ${clinicName}?`)) {
+      const { error } = await supabase
+        .from('clinics')
+        .update({ is_active: !currentStatus })
+        .eq('name', clinicName)
+      
+      if (error) {
+        alert('Error updating clinic status: ' + error.message)
+      } else {
+        await loadData()
+      }
     }
   }
 
@@ -413,13 +378,7 @@ export default function AdminPanel() {
                         >
                           ✏️ Edit
                         </button>
-                        <button
-                          onClick={() => handleResetPassword(user.id, user.email)}
-                          className="text-yellow-600 hover:text-yellow-900"
-                          title="Reset Password"
-                        >
-                          🔑 Reset
-                        </button>
+                        {/* Reset Password button removed - requires admin privileges */}
                         {user.role !== 'owner' && (
                           <button
                             onClick={() => handleDeleteUser(user.id, user.email)}
@@ -438,8 +397,56 @@ export default function AdminPanel() {
           </div>
         </div>
 
-        {/* Subscription Overview */}
+        {/* System Settings Section */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 py-3 border-b bg-gray-50">
+            <h2 className="font-semibold text-gray-800">⚙️ System Settings</h2>
+          </div>
+          <div className="p-4">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">System Name</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  value={settings.system_name || 'Dental Clinic System'}
+                  onChange={(e) => setSettings({...settings, system_name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Default Currency</label>
+                <select
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  value={settings.currency || 'USD'}
+                  onChange={(e) => setSettings({...settings, currency: e.target.value})}
+                >
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="LKR">LKR (Rs)</option>
+                </select>
+              </div>
+              <button
+                onClick={async () => {
+                  const { error } = await supabase
+                    .from('system_settings')
+                    .upsert(settings)
+                  if (error) {
+                    alert('Error saving settings: ' + error.message)
+                  } else {
+                    alert('Settings saved successfully!')
+                  }
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Subscription Overview */}
+        <div className="bg-white rounded-lg shadow overflow-hidden mt-6">
           <div className="px-4 py-3 border-b bg-gray-50">
             <h2 className="font-semibold text-gray-800">📋 Subscription Overview</h2>
           </div>
@@ -462,7 +469,7 @@ export default function AdminPanel() {
                   const isExpiring = daysLeft !== null && daysLeft <= 7 && daysLeft > 0
                   
                   return (
-                    <tr key={clinic.id}>
+                    <tr key={clinic.name}>
                       <td className="px-4 py-3 text-sm font-medium">{clinic.name}</td>
                       <td className="px-4 py-3 text-sm capitalize">{clinic.subscription_plan || 'Free'}</td>
                       <td className="px-4 py-3 text-sm">
@@ -484,15 +491,10 @@ export default function AdminPanel() {
                       </td>
                       <td className="px-4 py-3">
                         <button
-                          onClick={() => toggleClinicStatus(clinic.id, clinic.is_active)}
-                          disabled={togglingClinic === clinic.id}
-                          className={`px-3 py-1 rounded text-sm font-medium transition ${
-                            clinic.is_active 
-                              ? 'bg-red-600 text-white hover:bg-red-700' 
-                              : 'bg-green-600 text-white hover:bg-green-700'
-                          } disabled:opacity-50`}
+                          onClick={() => toggleClinicStatus(clinic.name, clinic.is_active)}
+                          className={`text-sm font-medium ${clinic.is_active ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'}`}
                         >
-                          {togglingClinic === clinic.id ? 'Processing...' : (clinic.is_active ? 'Deactivate' : 'Activate')}
+                          {clinic.is_active ? 'Deactivate' : 'Activate'}
                         </button>
                       </td>
                     </tr>
@@ -504,9 +506,8 @@ export default function AdminPanel() {
         </div>
       </div>
 
-      {/* Add User Modal - Keep your existing modal code */}
+      {/* Add User Modal */}
       {showAddUser && (
-        // ... your existing add user modal code
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h2 className="text-xl font-bold mb-4">Add New User</h2>
@@ -573,7 +574,7 @@ export default function AdminPanel() {
                   >
                     <option value="">Select Clinic</option>
                     {subscriptions.map(clinic => (
-                      <option key={clinic.id} value={clinic.id}>
+                      <option key={clinic.name} value={clinic.name}>
                         {clinic.name}
                       </option>
                     ))}
@@ -601,7 +602,7 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* Edit User Modal - Keep your existing edit modal code */}
+      {/* Edit User Modal */}
       {editingUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
@@ -649,7 +650,7 @@ export default function AdminPanel() {
                   >
                     <option value="">Select Clinic</option>
                     {subscriptions.map(clinic => (
-                      <option key={clinic.id} value={clinic.id}>
+                      <option key={clinic.name} value={clinic.name}>
                         {clinic.name}
                       </option>
                     ))}

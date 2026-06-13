@@ -50,10 +50,10 @@ export default function LoginPage() {
     // Wait a moment for session to be established
     await new Promise(resolve => setTimeout(resolve, 1500))
 
-    // Step 2: Get user role and clinic details - SIMPLIFIED APPROACH
+    // Step 2: Get user role and clinic details - ADD email to select
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('role, clinic_id, first_name, last_name')
+      .select('email, role, clinic_id, first_name, last_name')  // ✅ Added email
       .eq('email', email)
       .maybeSingle()
 
